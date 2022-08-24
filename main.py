@@ -6,20 +6,20 @@ from utils import FaceRun
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import numpy as np
-
+from tqdm import tqdm
 DATASET_FOLDER = "/home/doy/dataset/fexpr/"
 DST_PATH = "/home/doy/dataset/fexpr/dest/listup/"
 
 def filter_headers(lines):
     if lines[8].split(' ')[0] == "Video":
-        return lines[8:]
+        return lines[9:]
     else:
         raise ("not match pattern")
 
-def convert_text2df(path2client,faceEngine):
+def convert_text2df(path2client,faceEngine,idx):
     path2parent=os.path.join(DATASET_FOLDER,path2client)
     childs=os.listdir(path2parent)
-    idx=0
+
     for child in childs:
         if child.endswith('.txt'):
             with open(os.path.join(path2parent,child),'r') as file:
@@ -43,7 +43,7 @@ def convert_text2df(path2client,faceEngine):
                         if face_landmark is not None:
                             path2np = os.path.join(DST_PATH, 'images', '{:016d}.np'.format(idx))
                             np.save(path2np,face_landmark)
-                            print("idx :",idx)
+                            # print("idx :",idx)
                             idx += 1
                         else:
                             pass
@@ -51,7 +51,7 @@ def convert_text2df(path2client,faceEngine):
                         print(e)
                 else:
                     pass
-
+    return idx
 
 
 
@@ -70,8 +70,13 @@ def convert_text2df(path2client,faceEngine):
 def run_train(dataset_folder):
     tests=os.listdir(dataset_folder)
     faceEngine = FaceRun()
-    for test in tests:
-        convert_text2df(test,faceEngine)
+    idx = 0
+    # print("tests")
+    for index, test in tqdm(enumerate(tests)):
+        # if test !="drryu1_20-040_20220428_HTP":
+        # print("test",test)
+        # if index > 11:
+        idx=convert_text2df(test,faceEngine,idx)
 
 
 

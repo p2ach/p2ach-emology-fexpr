@@ -12,16 +12,20 @@ class FaceRun():
     def get_detection(self,img,frame_width,frame_height):
         with self.mp_face_detection.FaceDetection(
                 model_selection=0, min_detection_confidence=0.5) as face_detection:
-            image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            results = face_detection.process(image)
-            # image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            if results.detections:
-                for detection in results.detections:
-                    x1, x2, y1, y2 = self.apply_offsets(detection.location_data, frame_height, frame_width, self.offsets)
-                    face_img = image[y1:y2, x1:x2]
-                    return face_img
-            else:
+            try:
+                image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            except Exception as e:
                 return None
+            else:
+                results = face_detection.process(image)
+                # image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                if results.detections:
+                    for detection in results.detections:
+                        x1, x2, y1, y2 = self.apply_offsets(detection.location_data, frame_height, frame_width, self.offsets)
+                        face_img = image[y1:y2, x1:x2]
+                        return face_img
+                else:
+                    return None
 
     def get_landmark(self,face_img):
         with self.mp_face_mesh.FaceMesh(
