@@ -1,0 +1,15 @@
+version: '3.7'
+services:
+  dev-fex:
+    image: dev-fexpr:latest
+    command: nvidia-smi
+    build: .
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 4
+              capabilities: [gpu]
+    volumes:
+      - /home/doy/:/home/doy/

@@ -13,6 +13,7 @@ import torch.optim as optim
 import torch.utils.data as data
 import torchvision
 import time
+from tqdm import tqdm
 from model import FaceExprNet
 
 from dataset import FaceExpr
@@ -99,7 +100,13 @@ class ExpRecognition():
         total_lm_loss = 0.0
         total_loss = 0.0
         total_num = 0
-        for batch_idx, (img, label) in enumerate(self.train_loader):
+
+        len_train_loader = len(self.train_loader)
+        print("train_loader size", len_train_loader)
+
+        for batch_idx, (img, label) in enumerate(tqdm(self.train_loader)):
+            # if batch_idx>1000:
+            #     break
             img, label = \
                 img.to(self.device).float(), label.to(self.device).long()
                 # landmark.to(self.device).float(), have_landmark.to(self.device).long()
@@ -166,8 +173,10 @@ class ExpRecognition():
                 # self.train_loader.dataset.labels[label_index.cpu().numpy()] = relabels.cpu().numpy()
         end = time.time()
 
-        print('epoch_' + str(epoch) + ':\tspend ' + str(end - start) + 's'+ \
-        '\tce loss: ' + '{:3.6f}'.format(total_ce_loss / total_num))
+        print('epoch_' + str(epoch) + '\t loss: ' + '{:3.6f}'.format(total_ce_loss / total_num))
+
+        #':\tspend ' + str(end - start) + 's'+ \
+
               # '\trr loss: ' + '{:3.6f}'.format(total_rr_loss / total_num) + \
               # '\tce loss: ' + '{:3.6f}'.format(total_ce_loss / total_num) + \
               # '\tlm loss: ' + '{:3.6f}'.format(total_lm_loss / total_num))
@@ -183,15 +192,21 @@ class ExpRecognition():
         all_class_correct = 0
         all_class_total = 0
         class_correct = list(0. for i in range(7))
-        class_prdict = list(0. for i in range(7))
+        class_predict = list(0. for i in range(7))
         class_total = list(0. for i in range(7))
         class_accuracy = list(0. for i in range(7))
+
+        print("len_validation_size", len_validation_size)
+
         with torch.no_grad():
             for batch_idx, (img, label) in enumerate(self.validation_loader):
+                if batch_idx > 10000:
+                    break
                 img, label = \
                     img.to(self.device).float(), label.to(self.device).long()
 
                 batch_size = img.shape[0]
+                # print("batch_size", batch_size)
 
                 # img, label = img.to(self.device).float(), label.to(self.device).long()
                 # _, weighted_prob, _ = self.model(img)
@@ -207,6 +222,7 @@ class ExpRecognition():
 
 
 
+
                 for i in range(batch_size):
                     # lbl = class_correct[i]
                     if corrected == True:
@@ -214,7 +230,7 @@ class ExpRecognition():
                         all_class_correct += 1
 
                     class_total[label.detach().cpu().numpy().squeeze()] += 1
-                    class_prdict[predicted.detach().cpu().numpy().squeeze()]+=1
+                    class_predict[predicted.detach().cpu().numpy().squeeze()]+=1
                     all_class_total += 1
 
 
@@ -229,11 +245,21 @@ class ExpRecognition():
                 class_accuracy[index]=str(class_correct[index] / class_total[index])
             else:
                 class_accuracy[index] = str(-class_correct[index])
-        enumerated_acc = ',  '.join(class_accuracy)
+
+
+
         class_total=[str(clt) for clt in class_total]
         class_predict=[str(prd) for prd in class_predict]
+
+        class_accuracy = [str(round(float(item),3)) for item in class_accuracy]
+        class_predict = [str(int(float(item))) for item in class_predict]
+        class_total = [str(int(float(item))) for item in class_total]
+
+
+        enumerated_acc = ',  '.join(class_accuracy)
         enumerated_predict = ','.join(class_predict)
         enumerated_total = ','.join(class_total)
+
         try:
             print('validation - loss: ' + '{:3.6f}'.format(float(total_loss) / float(total_num)) + ", accuracy : " + str(float(all_class_correct) / float(all_class_total)) + ', detail : ' + enumerated_acc
                   + ' total predict : '+ enumerated_predict + ', total detail : '+ enumerated_total)

@@ -32,7 +32,7 @@ class FaceExprNet(nn.Module):
         #     nn.Linear(512, 7),
         #     nn.ReLU()
         # )
-        self.dropout1 = nn.Dropout2d(0.25)
+        # self.dropout1 = nn.Dropout2d(0.25)
         self.dropout2 = nn.Dropout2d(0.5)
 
     def forward(self, x):
@@ -46,7 +46,7 @@ class FaceExprNet(nn.Module):
         # 데이터가 fc1을 지나갑니다.
         x = self.fc1(x)
         x = F.relu(x)
-        x = self.dropout1(x)
+        # x = self.dropout1(x)
         x = self.fc2(x)
         x = F.relu(x)
         x = self.dropout2(x)

@@ -8,15 +8,15 @@ from train_options import ToolOptions
 from landmark_expression_recognition import ExpRecognition
 
 
-labels_map = {
-    0: "T-Shirt",
-    1: "Trouser",
-    2: "Pullover",
-    3: "Dress",
-    4: "Coat",
-    5: "Sandal",
-    6: "Shirt"
-}
+# labels_map = {
+#     0: "T-Shirt",
+#     1: "Trouser",
+#     2: "Pullover",
+#     3: "Dress",
+#     4: "Coat",
+#     5: "Sandal",
+#     6: "Shirt"
+# }
 
 
 def run_train(args):
@@ -25,7 +25,7 @@ def run_train(args):
 
     if args.mode == 'train':
         model.load_train_data(args.train_path, args.batch_size, args.num_workers)
-        model.load_validation_data(args.validation_path, args.batch_size, args.num_workers)
+        model.load_validation_data(args.train_path, args.batch_size, args.num_workers)
         # model.load_test_data(opt.test_image_path, opt.num_workers)
         model.prepare_tool(args.start_lr, args.learning_rate_decay_start, args.total_epoch, args.model_path, \
                            args.beta, args.margin_1, args.margin_2, args.relabel_epoch)
