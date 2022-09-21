@@ -5,9 +5,6 @@ from shutil import copyfile
 
 
 RATIO=0.8
-
-
-
 def divide(DATA_PATH,DST_DATA_PATH):
     src_input_dir = os.path.join(DATA_PATH,'images')
     src_lbl_dir = os.path.join(DATA_PATH,'labels')

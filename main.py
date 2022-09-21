@@ -81,8 +81,11 @@ def run_train(dataset_folder):
     idx = 0
     dist_class_wise_length=[0,0,0,0,0,0,0]
 
+    print("parent folder num : ", len(tests))
+
     # print("tests")
     for index, test in tqdm(enumerate(tests)):
+        print("processing on : name {}, {}th stage, total num {} / ".format(test, index+       1, len(tests)))
         # if test !="drryu1_20-040_20220428_HTP":
         # print("test",test)
         # if index > 11:

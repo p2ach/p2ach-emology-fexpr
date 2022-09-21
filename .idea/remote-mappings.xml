@@ -10,6 +10,13 @@
             </list>
           </settings>
         </remote-mappings>
+        <remote-mappings server-id="python@docker-compose://[/home/doy/PycharmProjects/fexpr/docker-compose.yml, /home/doy/PycharmProjects/fexpr/docker-compose.train.yml]:dev-fex2/python3">
+          <settings>
+            <list>
+              <mapping local-root="$USER_HOME$" remote-root="/home/doy" />
+            </list>
+          </settings>
+        </remote-mappings>
       </list>
     </list>
   </component>

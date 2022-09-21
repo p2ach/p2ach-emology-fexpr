@@ -48,8 +48,11 @@ class FaceExpr(data.Dataset):
         list_len=[len(_imgs) for _imgs in _imgs_in_emt]
         max_len=max(list_len)
         for _index,_imgs in enumerate(_imgs_in_emt):
-            _imgs_in_emt[_index]=_imgs_in_emt[_index]*int(np.ceil(max_len/len (_imgs_in_emt[_index])))
-            _imgs_in_emt[_index]=_imgs_in_emt[_index][:max_len]
+            if len (_imgs_in_emt[_index])!=0:
+                _imgs_in_emt[_index]=_imgs_in_emt[_index]*int(np.ceil(max_len/len (_imgs_in_emt[_index])))
+                _imgs_in_emt[_index]=_imgs_in_emt[_index][:max_len]
+            else:
+                continue
 
         for _imgs in _imgs_in_emt:
             self.imgs+=_imgs
@@ -82,11 +85,11 @@ class FaceExpr(data.Dataset):
         lbl = [float(l) for l in lbl]
 
         lbl=np.array(lbl,dtype=np.float32)
-        label=np.argmax(lbl)
+        # label=np.argmax(lbl)
         # print("row", label)
 
         if self.transform:
             image = self.transform(image)
         if self.target_transform:
-            label = self.target_transform(label)
-        return image, label
+            lbl = self.target_transform(lbl)
+        return image, lbl
