@@ -10,11 +10,15 @@ import torchvision
 import time
 from tqdm import tqdm
 from model import FaceExprNet
+from model import FaceExprNet_2
+from model import FaceExprNet_each
 
 from dataset import FaceExpr
 from eval_peach.peach_compare import compare
 from eval_peach.peach_compare import EMOTIONS
 import pandas as pd
+
+from collections import OrderedDict
 
 class ExpRecognition():
     def prepare_devices(self, gpu_ids, landmark_num=68,chns=3):
@@ -61,22 +65,35 @@ class ExpRecognition():
         # model
 
         # self.model = VGG('VGG19', landmark_num=self.landmark_num) # use VGG model
-        self.model = FaceExprNet(landmark_num=self.landmark_num,chns=self.chns)  # use ResNet18 model
+        # self.model = FaceExprNet(landmark_num=self.landmark_num,chns=self.chns)  # use ResNet18 model
+        self.model = FaceExprNet_2(landmark_num=self.landmark_num,chns=self.chns)  # use ResNet18 model
+        # self.model = FaceExprNet_each(landmark_num=self.landmark_num,chns=self.chns)  # use ResNet18 model
 
         if model_path is not None:
             assert (torch.cuda.is_available())
             self.model.to(self.device)
             self.model = nn.DataParallel(self.model, self.gpu_ids)
             ck = torch.load(model_path)
-            self.model.load_state_dict(ck['net'])
+            # pretrained_dict = {ck['net'].replace("module.", ""): value for key, value in ck['net'].items()}
+
+            new_state_dict = OrderedDict()
+            for k, v in ck['net'].items():
+                name = k[7:]  # remove `module.`
+                new_state_dict[name] = v
+
+
+
+            self.model.load_state_dict(new_state_dict)
+            print("loaded model")
         if len(self.gpu_ids) > 0:
             assert (torch.cuda.is_available())
             self.model.to(self.device)
             self.model = nn.DataParallel(self.model, self.gpu_ids)
         # optimizer
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=start_lr)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=start_lr,weight_decay=1e-5)
         # loss function
         self.loss_fn = nn.MSELoss().to(self.device)
+        self.loss_ce_fn = nn.CrossEntropyLoss().to(self.device)
 
         # load related setting
         self.beta = beta
@@ -99,17 +116,22 @@ class ExpRecognition():
         total_num = 0
         class_total = list(0. for i in range(7))
         len_train_loader = len(self.train_loader)
+        pred_sum_list=list(0. for i in range(7))
+        label_mean_list=list(0. for i in range(7))
+        pred_second_momentum_list=list(0. for i in range(7))
+        pred_max_val_list=list(0. for i in range(7))
+        label_max_val_list=list(0. for i in range(7))
         print("train_loader size", len_train_loader)
 
         for batch_idx, (img, label) in enumerate(tqdm(self.train_loader)):
-            # if batch_idx>10:
-            #     break
+            if batch_idx>300:
+                break
             img, label = \
                 img.to(self.device).float(), label.to(self.device).float()
                 # landmark.to(self.device).float(), have_landmark.to(self.device).long()
 
             # Self-attention Importance Weighting Module
-            p_1, p_2, p_3, p_4, p_5, p_6, p_7 = self.model(img)
+            p_1, p_2, p_3, p_4, p_5, p_6, p_7, pred = self.model(img)
 
             '''SCN module in PyTorch.
             Reference:
@@ -143,7 +165,29 @@ class ExpRecognition():
             mse_loss_6 = self.loss_fn(p_6, torch.unsqueeze(label[:,5 ],1))
             mse_loss_7 = self.loss_fn(p_7, torch.unsqueeze(label[:,6 ],1))
 
-            loss = mse_loss_1+mse_loss_2+mse_loss_3+mse_loss_4+mse_loss_5+mse_loss_6+mse_loss_7
+            argmax_label = torch.argmax(label,dim=1)
+            ce_loss = self.loss_ce_fn(pred, argmax_label)
+
+            mse_loss= mse_loss_1+mse_loss_2+mse_loss_3+mse_loss_4+mse_loss_5+mse_loss_6+mse_loss_7
+            loss = mse_loss+ce_loss*0.5
+            # loss = ce_loss
+
+            temp_pred_list = [p_1, p_2, p_3, p_4, p_5, p_6, p_7]
+
+            for i,_pred in enumerate(temp_pred_list):
+                pred_sum_list[i]+=np.mean(_pred.detach().cpu().numpy().squeeze())
+                pred_second_momentum_list[i]+=np.std(_pred.detach().cpu().numpy().squeeze())
+                label_mean_list[i]+=np.mean(label[:,i].detach().cpu().numpy().squeeze())
+
+                tmp_max = np.max(_pred.detach().cpu().numpy().squeeze())
+                tmp_label_max = np.max(label[:,i].detach().cpu().numpy().squeeze())
+                if tmp_max > pred_max_val_list[i]:
+                    pred_max_val_list[i]=tmp_max
+                if tmp_label_max > label_max_val_list[i]:
+                    label_max_val_list[i]=tmp_label_max
+
+
+
             # # Landmark Loss
             # land_2d += self.mean_landmark
             # LM_loss = torch.mean(torch.abs(land_2d - landmark) * have_landmark[:, :, None])
@@ -185,8 +229,30 @@ class ExpRecognition():
                 # relabels = predicted_labels[update_idx]
                 # self.train_loader.dataset.labels[label_index.cpu().numpy()] = relabels.cpu().numpy()
         end = time.time()
+        if batch_idx != len(self.train_loader):
+            batch_idx=batch_idx-1
 
-        print('epoch_' + str(epoch) + '\t loss: ' + '{:3.6f}, class_total {}'.format(total_ce_loss / total_num, class_total))
+
+        for i, _pred in enumerate(pred_sum_list):
+            pred_sum_list[i] = str(pred_sum_list[i]/batch_idx)
+            pred_second_momentum_list[i] = str(pred_second_momentum_list[i]/batch_idx)
+            label_mean_list[i] = str(label_mean_list[i]/batch_idx)
+            pred_max_val_list[i] = str(pred_max_val_list[i])
+            label_max_val_list[i] = str(label_max_val_list[i])
+
+        for i, _pred in enumerate(pred_sum_list):
+            label_mean_list[i] =label_mean_list[i][:5]
+            pred_max_val_list[i] = pred_max_val_list[i][:5]
+            label_max_val_list[i] = label_max_val_list[i][:5]
+
+
+        # print('epoch_' + str(epoch) + '\t total loss: {:3.6f}, mse loss: {:3.6f}, ce loss: {:3.6f}, class_total {}'.format(total_ce_loss / total_num, mse_loss, ce_loss, class_total))
+        print('epoch_' + str(epoch) + '\t total loss: {:3.6f}, ce loss: {:3.6f}, class_total {}'.format(total_ce_loss / total_num, ce_loss, class_total))
+        print('each label mean value: {} '.format(',    '.join(label_mean_list)))
+        print('each pred mean value: {} '.format(',    '.join(pred_sum_list)))
+        print('each pred std value: {} '.format(',    '.join(pred_second_momentum_list)))
+        print('each label max value: {} '.format(',    '.join(label_max_val_list)))
+        print('each pred max value: {} '.format(',    '.join(pred_max_val_list)))
 
         #':\tspend ' + str(end - start) + 's'+ \
 
@@ -208,14 +274,15 @@ class ExpRecognition():
         class_predict = list(0. for i in range(7))
         class_total = list(0. for i in range(7))
         class_accuracy = list(0. for i in range(7))
+        pred_max_val_list = list(0. for i in range(7))
 
         print("len_validation_size", len_validation_size)
 
-        validlines_label = []
+        validlines_label_list = []
         validlines_prediction = []
         with torch.no_grad():
             for batch_idx, (img, label) in enumerate(self.validation_loader):
-                if batch_idx > 20000:
+                if batch_idx > 5000:
                     break
                 img, label = \
                     img.to(self.device).float(), label.to(self.device).float()
@@ -225,7 +292,7 @@ class ExpRecognition():
 
                 # img, label = img.to(self.device).float(), label.to(self.device).long()
                 # _, weighted_prob, _ = self.model(img)
-                p_1, p_2, p_3, p_4, p_5, p_6, p_7 = self.model(img)
+                p_1, p_2, p_3, p_4, p_5, p_6, p_7, pred = self.model(img)
 
 
 
@@ -248,8 +315,13 @@ class ExpRecognition():
                 mse_loss_6 = self.loss_fn(p_6, torch.unsqueeze(label[:,5 ],1))
                 mse_loss_7 = self.loss_fn(p_7, torch.unsqueeze(label[:,6 ],1))
 
-                total_loss += mse_loss_1.item()+mse_loss_2.item()+mse_loss_3.item()+mse_loss_4.item()+mse_loss_5.item()+mse_loss_6.item()+mse_loss_7.item() #* img.shape[0]
-                total_num += img.shape[0]
+                argmax_label = torch.argmax(label, dim=1)
+                ce_loss = self.loss_ce_fn(pred, argmax_label)
+                ce_loss = ce_loss.item()
+                mse_loss = mse_loss_1.item()+mse_loss_2.item()+mse_loss_3.item()+mse_loss_4.item()+mse_loss_5.item()+mse_loss_6.item()+mse_loss_7.item() #* img.shape[0]
+                total_loss =  mse_loss + ce_loss
+
+                total_num += 1
 
 
 
@@ -263,29 +335,34 @@ class ExpRecognition():
                 p_7 = list(p_7.cpu().detach().numpy()[0])
 
                 predict_list = [p_1[0], p_2[0], p_3[0], p_4[0], p_5[0], p_6[0], p_7[0]]
-                validlines_label.append(label_list)
+                validlines_label_list.append(label_list)
                 validlines_prediction.append(predict_list)
 
-                # _, predicted = torch.max(predict.data, 1)
-                # corrected = (predicted == label).squeeze()
-                # corrected=corrected.detach().cpu().numpy()
+                _, predicted = torch.max(pred.data, 1)
+                corrected = (predicted == argmax_label).squeeze()
+                corrected=corrected.detach().cpu().numpy()
 
-
+                for i, _pred in enumerate(pred_max_val_list):
+                    tmp_max = np.max(pred[:,i].detach().cpu().numpy().squeeze())
+                    if tmp_max > pred_max_val_list[i]:
+                        pred_max_val_list[i]=tmp_max
 
 
                 for i in range(batch_size):
                 #     # lbl = class_correct[i]
-                #     if corrected == True:
-                #         class_correct[label.detach().cpu().numpy().squeeze()] += 1
-                #         all_class_correct += 1
+                    if corrected == True:
+                        label_prob = label[i].detach().cpu().numpy().squeeze()
+                        argmax_label_np = np.argmax(label_prob)
+                        class_correct[argmax_label_np] += 1
+                        all_class_correct += 1
                     label_prob = label[i].detach().cpu().numpy().squeeze()
-                    label_prob = np.argmax(label_prob)
+                    argmax_label_np = np.argmax(label_prob)
 
-                    class_total[int(label_prob)] += 1
+                    class_total[int(argmax_label_np)] += 1
                     # class_total[label.detach().cpu().numpy().squeeze()] += 1
 
-                    # class_predict[predicted.detach().cpu().numpy().squeeze()]+=1
-                    # all_class_total += 1
+                    class_predict[predicted.detach().cpu().numpy().squeeze()]+=1
+                    all_class_total += 1
 
 
                 # file.write(str(int(predicted.data)))
@@ -294,15 +371,15 @@ class ExpRecognition():
         end = time.time()
         # print('validation:\tspend ' + str(end - start) + 's')
 
-        # for index, (indv, total) in enumerate(zip(class_correct,class_total)):
-        #     if class_total[index] !=0:
-        #         class_accuracy[index]=str(class_correct[index] / class_total[index])
-        #     else:
-        #         class_accuracy[index] = str(-class_correct[index])
+        for index, (indv, total) in enumerate(zip(class_correct,class_total)):
+            if class_total[index] !=0:
+                class_accuracy[index]=str(class_correct[index] / class_total[index])
+            else:
+                class_accuracy[index] = str(-class_correct[index])
 
         cols=EMOTIONS
 
-        validlines_label=np.array(validlines_label)
+        validlines_label=np.array(validlines_label_list)
         validlines_prediction=np.array(validlines_prediction)
         try:
             df_label = pd.DataFrame(np.array(validlines_label), columns=EMOTIONS)
@@ -316,6 +393,12 @@ class ExpRecognition():
 
 
 
+        for i, _pred in enumerate(pred_max_val_list):
+            pred_max_val_list[i] = str(pred_max_val_list[i])
+
+        for i, _pred in enumerate(pred_max_val_list):
+            pred_max_val_list[i] = pred_max_val_list[i][:5]
+
 
 
         df_label = df_label.rename(columns={x: cols[x] for x in range(len(cols))})
@@ -326,12 +409,12 @@ class ExpRecognition():
         compare_results=compare(df_label, df_prediction, emotions=EMOTIONS)
 
 
-        # class_total=[str(clt) for clt in class_total]
-        # class_predict=[str(prd) for prd in class_predict]
+        class_total=[str(clt) for clt in class_total]
+        class_predict=[str(prd) for prd in class_predict]
         #
-        # class_accuracy = [str(round(float(item),3)) for item in class_accuracy]
-        # class_predict = [str(int(float(item))) for item in class_predict]
-        # class_total = [str(int(float(item))) for item in class_total]
+        class_accuracy = [str(round(float(item),3)) for item in class_accuracy]
+        class_predict = [str(int(float(item))) for item in class_predict]
+        class_total = [str(int(float(item))) for item in class_total]
         #
         #
         # enumerated_acc = ',  '.join(class_accuracy)
@@ -339,17 +422,23 @@ class ExpRecognition():
         # enumerated_total = ','.join(class_total)
 
         try:
-            print('validation - loss: ' + '{:3.6f}'.format(float(total_loss)/total_num))
+            print('validation - total loss: {:3.6f}, mse loss: {:3.6f}, ce loss: {:3.6f}'.format(float(total_loss)/total_num,mse_loss, ce_loss))
+            print("accuracy: " + str(float(all_class_correct) / float(all_class_total)))
+            print("accuracy, " + ", ".join(class_accuracy))
+            print("class_total, " + ", ".join(class_total))
+            print("pred_max_val_list, " + ", ".join(pred_max_val_list))
             max_mean = 0.05
             max_std = 0.1
             print("max_mean : ", max_mean)
             print("max_std : ", max_std)
+
             for emo in EMOTIONS:
                 mean_of_diff = compare_results[emo]['mean']
                 std_of_diff = compare_results[emo]['std']
 
                 success = 'PASS' if mean_of_diff < max_mean and std_of_diff < max_std else 'FAIL'
-                print(' emotion {}, mean : {} + stdv :{} eval : {} class_total : {}'.format(emo,mean_of_diff,std_of_diff,success,class_total))
+                print(' emotion {}, mean : {} + stdv :{} eval : {}'.format(emo,mean_of_diff,std_of_diff,success))
+                # print(' emotion {}, mean : {} + stdv :{} eval : {} class_total : {}'.format(emo,mean_of_diff,std_of_diff,success,class_total))
         except Exception as e:
             print(e)
 
@@ -375,9 +464,9 @@ class ExpRecognition():
 
         print('test:\tspend ' + str(end - start) + 's')
 
-    def save_model(self, epoch, save_path='./model_save/resnet18_'):
+    def save_model(self, epoch, save_path='./model_save/fc7_'):
         state = {'net': self.model.state_dict(), 'optimizer': self.optimizer.state_dict(), 'epoch': epoch}
-        torch.save(state, save_path + str(epoch) + '.pth')
+        torch.save(state, save_path + str(epoch) + '_full_loss.pth')
 
     def set_lr(self, optimizer, lr):
         for group in optimizer.param_groups:

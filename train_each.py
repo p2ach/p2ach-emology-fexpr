@@ -30,7 +30,7 @@ def run_train(args):
         model.prepare_tool(args.start_lr, args.learning_rate_decay_start, args.total_epoch, args.model_path, \
                            args.beta, args.margin_1, args.margin_2, args.relabel_epoch)
 
-        for epoch in range(0, args.total_epoch + 1):
+        for epoch in range(2000, args.total_epoch + 1):
             model.train(epoch)
             model.validation(epoch)
             model.save_model(epoch=epoch)

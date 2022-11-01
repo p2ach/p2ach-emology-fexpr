@@ -7,10 +7,9 @@ from utils import FaceRun
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import numpy as np
 from tqdm import tqdm
-DATASET_FOLDER = "/home/doy/dat" \
-                 "aset/fexpr/"
-DST_PATH = "/home/doy/dataset/fexpr/dest/listup/"
+DATASET_FOLDER = "/docker/users/ldy/data/fexpr/"
 
+DST_PATH = "/docker/users/ldy/data/fexpr/dest/listup/"
 def filter_headers(lines):
     if lines[8].split(' ')[0] == "Video":
         return lines[9:]
@@ -26,7 +25,7 @@ def convert_text2df(path2client,faceEngine,idx):
             with open(os.path.join(path2parent,child),'r') as file:
                 lines = file.readlines()
             valid_lines_labels = filter_headers(lines)
-            video_name=child.split('.')[0].split('_')[-1]+'.webm'
+            video_name=child.split('.')[0].split('_')[-1]+'.mp4'
             cap = cv2.VideoCapture(os.path.join(path2parent,video_name))
             frame_width = int(cap.get(3))
             frame_height = int(cap.get(4))
@@ -75,7 +74,7 @@ def convert_text2df(path2client,faceEngine,idx):
                         pass
     return idx
 
-def run_train(dataset_folder):
+def run_train(dataset_folder):img_x_max
     tests=os.listdir(dataset_folder)
     faceEngine = FaceRun()
     idx = 0

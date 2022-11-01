@@ -4,7 +4,7 @@ import numpy as np
 
 
 class FaceRun():
-    def __init__(self):
+    def  __init__(self):
         self.mp_face_detection = mp.solutions.face_detection
         self.mp_face_mesh = mp.solutions.face_mesh
         self.offsets=(0, 0)

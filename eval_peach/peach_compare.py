@@ -121,8 +121,8 @@ if __name__ == '__main__':
     #     facereaderfile = Path(sys.argv[1])
     #     peachfile = Path(sys.argv[2])
 
-    facereaderfile="/home/doy/PycharmProjects/fexpr/eval_peach/drryu1_20-117_20220319_BGT_76cb68.txt"
-    peachfile="/home/doy/PycharmProjects/fexpr/eval_peach/test_20-117_20220319_BGT_camera1.txt"
+    facereaderfile="./face_reader/drryu1_22-082_20220419_HTP_25d642.txt"
+    peachfile="./p2ach/drryu1_22-082_20220419_HTP_25d642.txt"
 
 
     max_mean = 0.05

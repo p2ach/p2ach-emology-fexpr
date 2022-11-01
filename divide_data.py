@@ -72,7 +72,7 @@ def divide(DATA_PATH,DST_DATA_PATH):
 
 
 if __name__ == '__main__':
-    DATA_PATH="/home/doy/dataset/fexpr/dest/listup/"
-    DST_DATA_PATH="/home/doy/dataset/fexpr/dest/"
+    DATA_PATH="/docker/users/ldy/data/fexpr/dest/listup/"
+    DST_DATA_PATH="/docker/users/ldy/data/fexpr/dest/"
     divide(DATA_PATH,DST_DATA_PATH)
 
